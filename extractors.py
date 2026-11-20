@@ -1,8 +1,14 @@
 import os
 import re
 from pathlib import Path
+
 from pypdf import PdfReader
 from rapidocr_onnxruntime import RapidOCR
+
+import config
+
+TEXT_EXTS = {".txt", ".md", ".csv", ".log", ".py"}
+IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".webp"}
 
 _ocr_engine = None
 
@@ -33,8 +39,11 @@ def _read_docx(path: Path) -> str:
     return "\n".join(parts)
 
 
-def extract_text(file_path: str) -> str:
-    """Ekstrahuje surowy tekst z plików .txt, .md, .pdf oraz obrazów (.png, .jpg, .jpeg, .webp)."""
+def extract_text(file_path: str, max_pages: int | None = None) -> str:
+    """Ekstrahuje surowy tekst z plików tekstowych, .pdf, .docx oraz obrazów (OCR).
+
+    max_pages - dla PDF-ów: czytaj tylko N pierwszych stron (None = wszystkie).
+    """
     path = Path(file_path)
     if not path.exists() or not path.is_file():
         return ""
@@ -42,21 +51,19 @@ def extract_text(file_path: str) -> str:
     ext = path.suffix.lower()
     extracted_text = ""
 
-
-    if ext in {".txt", ".md"}:
-        with open(path, "r", encoding="utf-8", errors="ignore") as f:
-            extracted_text = f.read()
+    if ext in TEXT_EXTS:
+        extracted_text = _read_text_file(path)
 
     elif ext == ".pdf":
         reader = PdfReader(path)
         pages_text = []
-        for page in reader.pages:
+        for page in reader.pages[:max_pages]:
             t = page.extract_text()
             if t:
                 pages_text.append(t)
         extracted_text = "\n".join(pages_text)
 
-    elif ext in {".png", ".jpg", ".jpeg", ".webp"}:
+    elif ext in IMAGE_EXTS:
         engine = _get_ocr_engine()
         result, _ = engine(str(path))
         if result:
@@ -79,16 +86,18 @@ def extract_text(file_path: str) -> str:
         raise ValueError(f"Nieobsługiwany format pliku: {ext}")
 
     # Normalizacja białych znaków
-    clean_text = re.sub(r"\s+", " ", extracted_text).strip()
-    return clean_text
+    return re.sub(r"\s+", " ", extracted_text).strip()
 
 
-def chunk_text(text: str, chunk_size: int = 500, overlap: int = 100) -> list[str]:
+def chunk_text(text: str, chunk_size: int = config.CHUNK_SIZE,
+               overlap: int = config.CHUNK_OVERLAP) -> list[str]:
     """Dzieli tekst na nakładające się fragmenty (chunki) i odrzuca szum (< 30 znaków)."""
+    if overlap >= chunk_size:
+        raise ValueError("overlap musi być mniejszy niż chunk_size")
     if not text:
         return []
     if len(text) <= chunk_size:
-        return [text] if len(text) >= 20 else []
+        return [text] if len(text) >= 30 else []
 
     chunks = []
     start = 0
@@ -104,24 +113,26 @@ def chunk_text(text: str, chunk_size: int = 500, overlap: int = 100) -> list[str
     return chunks
 
 
-def process_file_for_embedding(
-    file_path: str, chunk_size: int = 500, overlap: int = 100
-) -> list[str]:
-    """Zwraca listę samych tekstowych chunków (kontrakt używany przez indexer, sorter, evaluate)."""
-    raw_text = extract_text(file_path)
+def process_file_for_embedding(file_path: str, chunk_size: int = config.CHUNK_SIZE,
+                               overlap: int = config.CHUNK_OVERLAP,
+                               max_pages: int | None = None) -> list[str]:
+    """Zwraca listę samych tekstowych chunków (kontrakt używany przez indexer)."""
+    raw_text = extract_text(file_path, max_pages=max_pages)
     return chunk_text(raw_text, chunk_size=chunk_size, overlap=overlap)
 
 
-def process_file(
-    file_path: str, chunk_size: int = 500, overlap: int = 100
-) -> list[dict]:
-    """Wersja z metadanymi (tekst z prefiksem nazwy pliku). Nieużywana przez indexer."""
-    chunks = process_file_for_embedding(file_path, chunk_size=chunk_size, overlap=overlap)
+def process_file(file_path: str, chunk_size: int = config.CHUNK_SIZE,
+                 overlap: int = config.CHUNK_OVERLAP,
+                 max_pages: int | None = None) -> list[dict]:
+    """Wersja z metadanymi; "text" ma prefiks z nazwą pliku (używają jej main i evaluate)."""
+    chunks = process_file_for_embedding(file_path, chunk_size=chunk_size, overlap=overlap,
+                                        max_pages=max_pages)
     filename = os.path.basename(file_path)
+    readable_name = Path(filename).stem.replace("_", " ")
 
     return [
         {
-            "text": f"[Plik: {filename}] {chunk}",
+            "text": f"[Plik: {readable_name}] {chunk}",
             "raw_snippet": chunk,
             "metadata": {
                 "source": str(file_path),
