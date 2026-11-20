@@ -72,6 +72,9 @@ def extract_text(file_path: str) -> str:
                 if text_val and score > 0.5:
                     extracted_lines.append(str(text_val))
             extracted_text = " ".join(extracted_lines)
+
+    elif ext == ".docx":
+        extracted_text = _read_docx(path)
     else:
         raise ValueError(f"Nieobsługiwany format pliku: {ext}")
 
