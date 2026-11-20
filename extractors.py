@@ -23,32 +23,41 @@ def extract_text(file_path: str) -> str:
     ext = path.suffix.lower()
     extracted_text = ""
 
-    try:
-        if ext in {".txt", ".md", ".py", ".csv", ".log"}:
-            with open(path, "r", encoding="utf-8", errors="ignore") as f:
-                extracted_text = f.read()
+    if ext in {".txt", ".md"}:
+        with open(path, "r", encoding="utf-8", errors="ignore") as f:
+            extracted_text = f.read()
 
-        elif ext == ".pdf":
-            reader = PdfReader(path)
-            pages_text = [page.extract_text() or "" for page in reader.pages]
-            extracted_text = "\n".join(pages_text)
+    elif ext == ".pdf":
+        reader = PdfReader(path)
+        pages_text = []
+        for page in reader.pages:
+            t = page.extract_text()
+            if t:
+                pages_text.append(t)
+        extracted_text = "\n".join(pages_text)
 
-        elif ext in {".png", ".jpg", ".jpeg", ".webp"}:
-            engine = _get_ocr_engine()
-            result, _ = engine(str(path))
-            if result:
-                # Filtrujemy szum OCR o niskiej pewności (< 0.5)
-                extracted_text = " ".join(
-                    [line[1] for line in result if line[1] and line[2] > 0.5]
-                )
-        else:
-            # Ignorujemy nieobsługiwane pliki (np. desktop.ini, .zip) bez wywalania programu
-            return ""
-    except Exception as e:
-        print(f"[Extractor Error] Błąd dla pliku {file_path}: {e}")
-        return ""
+    elif ext in {".png", ".jpg", ".jpeg", ".webp"}:
+        engine = _get_ocr_engine()
+        result, _ = engine(str(path))
+        if result:
+            extracted_lines = []
+            for line in result:
+                if not line or len(line) < 3:
+                    continue
+                text_val = line[1]
+                try:
+                    score = float(line[2])
+                except (ValueError, TypeError):
+                    score = 1.0
+                if text_val and score > 0.5:
+                    extracted_lines.append(str(text_val))
+            extracted_text = " ".join(extracted_lines)
+    else:
+        raise ValueError(f"Nieobsługiwany format pliku: {ext}")
 
-    return re.sub(r"\s+", " ", extracted_text).strip()
+    # Normalizacja białych znaków
+    clean_text = re.sub(r"\s+", " ", extracted_text).strip()
+    return clean_text
 
 
 def chunk_text(text: str, chunk_size: int = 500, overlap: int = 100) -> list[str]:
