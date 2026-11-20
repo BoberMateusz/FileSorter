@@ -14,6 +14,25 @@ def _get_ocr_engine() -> RapidOCR:
     return _ocr_engine
 
 
+def _read_text_file(path: Path) -> str:
+    for enc in ("utf-8", "utf-8-sig", "cp1250"):   # cp1250 = polskie Windowsy
+        try:
+            return path.read_text(encoding=enc)
+        except UnicodeDecodeError:
+            continue
+    return path.read_text(encoding="utf-8", errors="ignore")
+
+
+def _read_docx(path: Path) -> str:
+    from docx import Document
+    doc = Document(str(path))
+    parts = [p.text for p in doc.paragraphs]
+    for table in doc.tables:
+        for row in table.rows:
+            parts.append(" | ".join(c.text for c in row.cells))
+    return "\n".join(parts)
+
+
 def extract_text(file_path: str) -> str:
     """Ekstrahuje surowy tekst z plików .txt, .md, .pdf oraz obrazów (.png, .jpg, .jpeg, .webp)."""
     path = Path(file_path)
@@ -22,6 +41,7 @@ def extract_text(file_path: str) -> str:
 
     ext = path.suffix.lower()
     extracted_text = ""
+
 
     if ext in {".txt", ".md"}:
         with open(path, "r", encoding="utf-8", errors="ignore") as f:
@@ -84,7 +104,7 @@ def chunk_text(text: str, chunk_size: int = 500, overlap: int = 100) -> list[str
 def process_file_for_embedding(
     file_path: str, chunk_size: int = 500, overlap: int = 100
 ) -> list[str]:
-    """Zwraca listę samych tekstowych chunków."""
+    """Zwraca listę samych tekstowych chunków (kontrakt używany przez indexer, sorter, evaluate)."""
     raw_text = extract_text(file_path)
     return chunk_text(raw_text, chunk_size=chunk_size, overlap=overlap)
 
@@ -92,7 +112,7 @@ def process_file_for_embedding(
 def process_file(
     file_path: str, chunk_size: int = 500, overlap: int = 100
 ) -> list[dict]:
-    """Główny kontrakt dla Osoby 2 (indexer.py) — zwraca chunki z metadanymi."""
+    """Wersja z metadanymi (tekst z prefiksem nazwy pliku). Nieużywana przez indexer."""
     chunks = process_file_for_embedding(file_path, chunk_size=chunk_size, overlap=overlap)
     filename = os.path.basename(file_path)
 
@@ -110,12 +130,12 @@ def process_file(
     ]
 
 
-# Bezpieczny blok testowy — uruchamia się TYLKO gdy odpalisz bezpośrednio extractors.py
+# Test ręczny:  python extractors.py ./test_files/document\(14\).pdf
 if __name__ == "__main__":
-    test_path = "C:/Users/Szymon/Downloads/NET.pdf"
-    if os.path.exists(test_path):
+    import sys
+    for test_path in sys.argv[1:]:
         wynik = process_file(test_path)
-        print(f"Wygenerowano {len(wynik)} chunków.")
+        print(f"{test_path}: {len(wynik)} chunków.")
         for item in wynik[:3]:
             print(f"--- Chunk {item['metadata']['chunk_index'] + 1} ---")
             print(item["raw_snippet"])

@@ -1,0 +1,7 @@
+fastembed
+chromadb
+numpy
+pypdf
+python-docx
+rapidocr-onnxruntime   # OCR obrazów; bez niej działają PDF, DOCX i pliki tekstowe
+ollama                 # tylko dla EMBED_BACKEND=ollama (EmbeddingGemma)

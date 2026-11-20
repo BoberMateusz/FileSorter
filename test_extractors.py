@@ -1,3 +1,4 @@
+import sys
 from extractors import process_file_for_embedding
 
 # Test na pliku tekstowym/obrazie/PDF

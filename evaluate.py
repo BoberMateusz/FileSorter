@@ -1,38 +1,21 @@
-
 # evaluate.py
-# Mierzy trafność suggest_folder() na plikach z ./test_files.
-# Wymaga wersji suggest_folder z search.py, która przyjmuje listy opisów
-# i parametr return_scores=True.
+# Mierzy trafność klasyfikacji folderów na plikach z ./test_files.
+# Foldery i próg bierze z config.py (te same, których używa sorter.py).
+#
+# Porównanie modeli:
+#   python evaluate.py
+#   EMBED_BACKEND=ollama MODEL_NAME=embeddinggemma python evaluate.py
 import os
 import time
 
 import config
-from file_processor import process_file
+from extractors import process_file_for_embedding as process_file
 from search import suggest_folder
 
 TEST_DIR = "./test_files"
-THRESHOLD = 0.30     # poniżej tego wyniku plik trafia do "Do przejrzenia"
+THRESHOLD = config.THRESHOLD
+FOLDERS = config.FOLDERS
 MIN_MARGIN = 0.05    # mały odstęp między 1. a 2. folderem = przypadek na granicy
-
-FOLDERS = {
-    "Faktury i finanse": [
-        "faktura VAT, sprzedawca, nabywca, kwota do zapłaty, termin płatności",
-        "paragon ze sklepu, zakupy, suma PLN, podatek PTU",
-    ],
-    "Studia": [
-        "notatki z wykładu na uczelni, prowadzący, temat zajęć",
-        "algorytmy i struktury danych, grafy, złożoność obliczeniowa, BFS, DFS",
-        "kolokwium, laboratorium, zadania do zrobienia, egzamin",
-    ],
-    "Dokumenty urzędowe": [
-        "wniosek do urzędu, zaświadczenie, decyzja administracyjna, pouczenie",
-        "umowa najmu mieszkania, czynsz, kaucja, wynajmujący i najemca",
-    ],
-    "Błędy w kodzie": [
-        "komunikat błędu kompilatora, error, warning, linker",
-        "wyjątek w programie, access violation, stos wywołań, crash",
-    ],
-}
 
 # plik -> oczekiwany folder
 # (dla pliku, który nie pasuje do żadnego folderu, wpisz "Do przejrzenia")
@@ -47,7 +30,7 @@ EXPECTED = {
 
 
 def main():
-    print(f"Model: {config.MODEL_NAME}  (backend: {getattr(config, 'EMBED_BACKEND', 'fastembed')})")
+    print(f"Model: {config.MODEL_NAME}  (backend: {config.EMBED_BACKEND})")
     print(f"Próg pewności: {THRESHOLD}\n")
 
     ok = 0
@@ -62,7 +45,7 @@ def main():
 
         text = " ".join(process_file(path))
         if not text.strip():
-            print(f"BŁĄD  {name}: pusty tekst (process_file nic nie wyciągnął)")
+            print(f"BŁĄD  {name}: pusty tekst (extractor nic nie wyciągnął)")
             total += 1
             continue
 
