@@ -41,9 +41,18 @@ def extract_text(file_path: str) -> str:
         engine = _get_ocr_engine()
         result, _ = engine(str(path))
         if result:
-            # result to lista struktur: [bbox, text, score]
-            extracted_text = "\n".join([line[1] for line in result if line[1]])
-
+            extracted_lines = []
+            for line in result:
+                if not line or len(line) < 3:
+                    continue
+                text_val = line[1]
+                try:
+                    score = float(line[2])
+                except (ValueError, TypeError):
+                    score = 1.0
+                if text_val and score > 0.5:
+                    extracted_lines.append(str(text_val))
+            extracted_text = " ".join(extracted_lines)
     else:
         raise ValueError(f"Nieobsługiwany format pliku: {ext}")
 
