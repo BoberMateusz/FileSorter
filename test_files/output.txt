@@ -1,0 +1,13 @@
+1>------ Build started: Project: Intersection_project, Configuration: Debug x64 ------
+1>main.cpp
+1>main.cpp(42,15): error C2065: 'liczbaPojazdow': undeclared identifier
+1>main.cpp(57,9): error C2664: 'void dodajPojazd(Pojazd *,int)': cannot convert argument 1 from 'Pojazd' to 'Pojazd *'
+1>symulacja.cpp(118,22): warning C4018: '<': signed/unsigned mismatch
+1>symulacja.cpp(131,5): error C2059: syntax error: '}'
+1>LINK : fatal error LNK1104: cannot open file 'Debug\Intersection_project.exe'
+1>Done building project "Intersection_project.vcxproj" -- FAILED.
+========== Build: 0 succeeded, 1 failed, 0 up-to-date, 0 skipped ==========
+
+Exception thrown at 0x00007FF7A1B2C3D4 in Intersection_project.exe: 0xC0000005: Access violation reading location 0x0000000000000000.
+Stos wywołań: przetworzSwiatla() -> aktualizujStan() -> main()
+Prawdopodobna przyczyna: wskaźnik nie został zainicjalizowany (nullptr) przed użyciem tablicy dynamicznej.
